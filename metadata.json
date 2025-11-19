@@ -1,0 +1,7 @@
+{
+  "name": "GeoAstro Compute",
+  "description": "A geospatial astronomical computation tool that analyzes your birth vs. current location to determine your 'True Solar' data using Gemini AI.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
