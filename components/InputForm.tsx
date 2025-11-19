@@ -1,13 +1,12 @@
-
 import React from 'react';
-import { MapPin, Calendar, Clock, Locate, Globe, Map } from 'lucide-react';
+import { MapPin, Calendar, Clock, Locate, Globe, Map, Thermometer } from 'lucide-react';
 import { AstroInput } from '../types';
 import { COUNTRIES, STATES_BY_COUNTRY } from '../data/locations';
 
 interface InputFormProps {
   title: string;
   data: AstroInput;
-  onChange: (field: keyof AstroInput, value: string) => void;
+  onChange: (field: keyof AstroInput, value: any) => void;
   onGetCurrentLocation?: () => void;
   isLoadingLocation?: boolean;
 }
@@ -142,6 +141,35 @@ const InputForm: React.FC<InputFormProps> = ({ title, data, onChange, onGetCurre
             </div>
           </div>
         </div>
+
+        {/* Temperature Option */}
+        <div className="pt-2 mt-2 border-t border-space-600/50">
+           <div className="flex items-center justify-between mb-2">
+              <label className="block text-xs text-gray-400 uppercase tracking-wider">Temperature (°C)</label>
+              <div className="flex items-center gap-2">
+                  <input 
+                      type="checkbox" 
+                      id={`hist-temp-${title}`}
+                      checked={data.useHistoricalTemperature || false}
+                      onChange={(e) => onChange('useHistoricalTemperature', e.target.checked)}
+                      className="w-3 h-3 rounded border-space-500 bg-space-800 text-space-accent focus:ring-space-accent cursor-pointer"
+                  />
+                  <label htmlFor={`hist-temp-${title}`} className="text-xs text-gray-400 cursor-pointer select-none hover:text-white transition-colors">Use Historical Avg.</label>
+              </div>
+           </div>
+           <div className="relative">
+              <Thermometer className={`absolute left-3 top-3 transition-colors ${data.useHistoricalTemperature ? 'text-gray-500' : 'text-space-accent'}`} size={18} />
+              <input
+                type="text"
+                value={data.useHistoricalTemperature ? '' : data.temperature || ''}
+                disabled={data.useHistoricalTemperature}
+                onChange={(e) => onChange('temperature', e.target.value)}
+                placeholder={data.useHistoricalTemperature ? "Auto-calculating historical average..." : "e.g. 22"}
+                className={`w-full bg-space-800 border border-space-600 text-white pl-10 pr-4 py-2.5 rounded-lg outline-none transition-all ${data.useHistoricalTemperature ? 'opacity-50 cursor-not-allowed placeholder-gray-500' : 'focus:ring-2 focus:ring-space-accent focus:border-transparent'}`}
+              />
+           </div>
+        </div>
+
       </div>
     </div>
   );

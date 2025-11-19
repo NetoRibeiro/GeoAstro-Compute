@@ -4,6 +4,8 @@ export interface AstroInput {
   country: string;
   date: string;
   time: string;
+  temperature?: string;
+  useHistoricalTemperature?: boolean;
   isCurrentLocation?: boolean;
 }
 
@@ -14,6 +16,10 @@ export interface RealBirthdayObservation {
 }
 
 export interface AstroAnalysis {
+  coordinates: {
+    latitude: number;
+    longitude: number;
+  };
   trueSolarTime: string;
   civilTimeDifference: string;
   sunPosition: {
@@ -28,6 +34,7 @@ export interface AstroAnalysis {
   };
   cosmicFact: string;
   equationOfTime: string;
+  temperature: string; // New field for the environmental context
   realBirthdayObservation?: RealBirthdayObservation;
 }
 

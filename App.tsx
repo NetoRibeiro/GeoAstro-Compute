@@ -9,11 +9,12 @@ import { Rocket, ChevronDown } from 'lucide-react';
 
 const App: React.FC = () => {
   const [birthData, setBirthData] = useState<AstroInput>({
-    city: '', state: '', country: '', date: '', time: ''
+    city: '', state: '', country: '', date: '', time: '', temperature: '', useHistoricalTemperature: false
   });
   
   const [currentData, setCurrentData] = useState<AstroInput>({
-    city: '', state: '', country: '', date: new Date().toISOString().split('T')[0], time: new Date().toLocaleTimeString('en-GB', {hour: '2-digit', minute: '2-digit', second: '2-digit'})
+    city: '', state: '', country: '', date: new Date().toISOString().split('T')[0], time: new Date().toLocaleTimeString('en-GB', {hour: '2-digit', minute: '2-digit', second: '2-digit'}),
+    temperature: '', useHistoricalTemperature: false
   });
 
   const [status, setStatus] = useState<AnalysisStatus>(AnalysisStatus.IDLE);
@@ -21,11 +22,11 @@ const App: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isLoadingLoc, setIsLoadingLoc] = useState(false);
 
-  const handleBirthChange = (field: keyof AstroInput, value: string) => {
+  const handleBirthChange = (field: keyof AstroInput, value: any) => {
     setBirthData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleCurrentChange = (field: keyof AstroInput, value: string) => {
+  const handleCurrentChange = (field: keyof AstroInput, value: any) => {
     setCurrentData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -41,13 +42,16 @@ const App: React.FC = () => {
         const location = await resolveLocationFromGeo(latitude, longitude);
         const now = new Date();
         
-        setCurrentData({
+        setCurrentData(prev => ({
+            ...prev,
             city: location.city,
             state: location.state,
             country: location.country,
             date: now.toISOString().split('T')[0],
-            time: now.toLocaleTimeString('en-GB', {hour12: false})
-        });
+            time: now.toLocaleTimeString('en-GB', {hour12: false}),
+            temperature: location.temperature,
+            useHistoricalTemperature: false
+        }));
       } catch (e) {
         console.error(e);
         alert("Failed to resolve location.");
