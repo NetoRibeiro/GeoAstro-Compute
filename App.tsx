@@ -211,7 +211,7 @@ const App: React.FC = () => {
                 Credits to <a href="https://towardsdatascience.com/author/kcpub21/" target="_blank" rel="noreferrer" className="text-space-accent hover:underline">kcpub21</a> on Towards Data Science.
             </p>
             <p className="text-gray-600 text-xs pt-4">
-                Generated with Gemini 2.5 Flash API
+                Generated with Gemini 2.5 Flash API • Precision Standard: DE421 Ephemeris
             </p>
          </div>
       </footer>

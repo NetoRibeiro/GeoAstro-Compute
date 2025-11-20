@@ -153,6 +153,7 @@ export const analyzeAstroData = async (
 
     Task:
     1. Calculate astronomical data (True Solar Time, Eq of Time, Sun Position).
+       - **CRITICAL: Use algorithms and data consistent with the DE421 Ephemeris (NASA JPL) for high-precision solar positioning calculations.**
        - Explicitly return 'coordinates' (lat/lon) used.
     2. **Solar Return Calculation**:
        - Calculate the 'Next Solar Return' (Real Birthday) strictly for the year **${targetReturnYear}**.
@@ -160,7 +161,7 @@ export const analyzeAstroData = async (
     3. **Real Birthday Observation**:
        - Provide the Local Date/Time of the Solar Return observed from the Current Location.
     4. **Perfect Alignment**:
-       - Find the optimal location on Earth for the Solar Return in ${targetReturnYear} to match birth solar geometry.
+       - Find the optimal location on Earth for the Solar Return in ${targetReturnYear} to match birth solar geometry (DE421 standard).
 
     Infer Lat/Lon coordinates. Return JSON.
   `;
