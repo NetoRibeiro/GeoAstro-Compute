@@ -256,7 +256,7 @@ const AstroCard: React.FC<AstroCardProps> = ({ type, data }) => {
       </div>
 
       {/* Birth Special: Real Solar Birthday */}
-      {birthData && birthData.nextSolarReturn && (
+      {isBirth && birthData && birthData.nextSolarReturn && (
         <div className="mt-6 p-4 rounded-xl bg-gradient-to-r from-amber-900/40 to-purple-900/40 border border-amber-500/20">
             <h3 className="text-amber-200 font-semibold mb-2 flex items-center gap-2">
                 <span className="text-xl">🎂</span> True Solar Birthday
@@ -269,37 +269,37 @@ const AstroCard: React.FC<AstroCardProps> = ({ type, data }) => {
                     {String(birthData.nextSolarReturn).includes('T') ? birthData.nextSolarReturn.split('T')[0] : birthData.nextSolarReturn}
                 </div>
                 <div className="text-right">
-                     <span className="block text-3xl font-bold text-amber-400">{Math.ceil(birthData.daysUntilSolarReturn)}</span>
+                     <span className="block text-3xl font-bold text-amber-400">{Math.ceil(birthData.daysUntilSolarReturn || 0)}</span>
                      <span className="text-xs text-amber-200 uppercase tracking-wider">Days Away</span>
                 </div>
             </div>
         </div>
       )}
 
-      {/* Current Special: Real Birthday Observation / Perfect Alignment Time */}
+      {/* Current Special: True Solar Birthday (Local) */}
       {!isBirth && data.realBirthdayObservation && (
         <div className="mt-6 p-4 rounded-xl bg-gradient-to-r from-cyan-900/40 to-blue-900/40 border border-cyan-500/20">
             <h3 className="text-cyan-200 font-semibold mb-2 flex items-center gap-2">
-                <MapPin size={20} /> Time of Solar Alignment
+                 <span className="text-xl">🎂</span> True Solar Birthday (Local)
             </h3>
             <p className="text-sm text-gray-300 mb-3">
-                At your current location ({data.realBirthdayObservation.location}), the Perfect Solar Alignment occurs on:
+                At your current location ({data.realBirthdayObservation.location}), the exact solar return occurs on:
             </p>
-            <div className="space-y-2">
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 bg-black/20 p-3 rounded-lg border border-cyan-500/10">
-                     <div className="flex items-center gap-2">
-                         <Calendar size={16} className="text-cyan-500" />
-                         <div className="text-lg font-mono font-bold text-cyan-100">
-                            {data.realBirthdayObservation.date}
-                         </div>
+            <div className="flex justify-between items-end">
+                <div className="flex flex-col gap-1">
+                     <div className="text-xl font-bold text-white">
+                        {data.realBirthdayObservation.date}
                      </div>
-                     <div className="flex items-center gap-2">
-                         <Clock size={16} className="text-cyan-500" />
-                         <div className="text-lg font-mono font-bold text-cyan-400">
-                            {data.realBirthdayObservation.time}
-                         </div>
+                     <div className="text-lg font-mono font-bold text-cyan-400">
+                        {data.realBirthdayObservation.time}
                      </div>
                 </div>
+                {data.daysUntilSolarReturn !== undefined && (
+                    <div className="text-right">
+                        <span className="block text-3xl font-bold text-cyan-400">{Math.ceil(data.daysUntilSolarReturn)}</span>
+                        <span className="text-xs text-cyan-200 uppercase tracking-wider">Days Away</span>
+                    </div>
+                )}
             </div>
         </div>
       )}

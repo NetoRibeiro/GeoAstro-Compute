@@ -37,11 +37,13 @@ export interface AstroAnalysis {
   equationOfTime: string;
   temperature: string;
   realBirthdayObservation?: RealBirthdayObservation;
+  nextSolarReturn?: string; // When the sun returns to the exact birth longitude
+  daysUntilSolarReturn?: number; // Days remaining until the next solar return
 }
 
 export interface BirthAnalysis extends AstroAnalysis {
-  nextSolarReturn: string; // When the sun returns to the exact birth longitude
-  daysUntilSolarReturn: number;
+  // Inherits all fields. 
+  // Specific birth fields are now available in base to allow Current Observer to show them if relevant.
 }
 
 export interface PerfectAlignment {
