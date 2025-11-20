@@ -5,7 +5,7 @@ import StarBackground from './components/StarBackground';
 import InputForm from './components/InputForm';
 import AstroCard from './components/AstroCard';
 import AlignmentCard from './components/AlignmentCard';
-import { Rocket, ChevronDown } from 'lucide-react';
+import { Rocket, ChevronDown, Github } from 'lucide-react';
 
 const App: React.FC = () => {
   const [birthData, setBirthData] = useState<AstroInput>({
@@ -192,7 +192,7 @@ const App: React.FC = () => {
                      <h3 className="text-xl font-semibold text-white mb-4">Analysis Summary</h3>
                      <p className="text-gray-300 max-w-3xl mx-auto">
                         At your birth in <span className="text-amber-400">{birthData.city}</span>, the True Solar Time differed from Civil Time by <span className="text-amber-400">{results.birthAnalysis.equationOfTime}</span>. 
-                        Your next exact Solar Return occurs on {String(results.birthAnalysis.nextSolarReturn || "").includes('T') ? results.birthAnalysis.nextSolarReturn.split('T')[0] : results.birthAnalysis.nextSolarReturn}.
+                        Your next exact Solar Return occurs on {String(results.birthAnalysis.nextSolarReturn || "").includes('T') ? results.birthAnalysis.nextSolarReturn!.split('T')[0] : results.birthAnalysis.nextSolarReturn}.
                         To experience the sky exactly as it was when you were born, consider traveling to <span className="text-space-glow font-bold">{results.perfectAlignment.city}, {results.perfectAlignment.country}</span>.
                      </p>
                 </div>
@@ -213,6 +213,20 @@ const App: React.FC = () => {
             <p className="text-gray-600 text-xs pt-4">
                 Generated with Gemini 2.5 Flash API • Precision Standard: DE421 Ephemeris
             </p>
+            
+            <div className="pt-6 border-t border-space-800/50 mt-4 flex flex-col md:flex-row items-center justify-center gap-2 md:gap-6 text-xs text-gray-500">
+                <div className="flex items-center gap-1">
+                    <span>Created by</span>
+                    <a href="https://github.com/NetoRibeiro/" target="_blank" rel="noreferrer" className="text-space-accent hover:text-white hover:underline transition-colors">
+                        NetoRibeiro
+                    </a>
+                </div>
+                <span className="hidden md:inline text-space-700">•</span>
+                <a href="https://github.com/NetoRibeiro/GeoAstro-Compute" target="_blank" rel="noreferrer" className="flex items-center gap-1.5 hover:text-white transition-colors group">
+                    <Github size={14} className="group-hover:text-space-accent transition-colors" />
+                    <span className="group-hover:underline">View Repository</span>
+                </a>
+            </div>
          </div>
       </footer>
     </div>
