@@ -1,8 +1,8 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { AstroInput, AstroAnalysis, BirthAnalysis, PerfectAlignment } from "../types";
+import { getZodiacSign } from "../utils/zodiac";
 
 // Initialize Gemini Client
-// NOTE: API Key is injected via process.env.API_KEY
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const analysisSchema: Schema = {
@@ -24,11 +24,12 @@ const analysisSchema: Schema = {
       properties: {
         azimuth: { type: Type.NUMBER, description: "Sun Azimuth in degrees" },
         altitude: { type: Type.NUMBER, description: "Sun Altitude in degrees" },
-        constellation: { type: Type.STRING, description: "Zodiac constellation the sun is in" },
+        constellation: { type: Type.STRING, description: "Astronomical Constellation name" },
         longitude: { type: Type.NUMBER, description: "Celestial longitude of the sun (0-360)" },
       },
       required: ["azimuth", "altitude", "constellation", "longitude"]
     },
+    zodiacSign: { type: Type.STRING, description: "The astrological zodiac sign" },
     moonPosition: {
       type: Type.OBJECT,
       properties: {
@@ -39,16 +40,16 @@ const analysisSchema: Schema = {
     },
     cosmicFact: { type: Type.STRING, description: "A brief, interesting fact about this specific alignment" },
     equationOfTime: { type: Type.STRING, description: "Value of Equation of Time (e.g., '-3.5 minutes')" },
-    temperature: { type: Type.STRING, description: "The temperature used for the context. If historical was requested, this must be the estimated historical average for that date/location." },
-    nextSolarReturn: { type: Type.STRING, description: "Date/Time of next exact solar return (same celestial longitude). Use ISO format if possible or readable text." },
+    temperature: { type: Type.STRING, description: "The temperature used for the context." },
+    nextSolarReturn: { type: Type.STRING, description: "Date/Time of next exact solar return. Use ISO format." },
     daysUntilSolarReturn: { type: Type.NUMBER, description: "Days remaining until the next solar return" },
     realBirthdayObservation: {
       type: Type.OBJECT,
       description: "The specific Local Date and Time when the Perfect Solar Alignment (Solar Return) occurs at the Current/Observer location.",
       properties: {
-        location: { type: Type.STRING, description: "Location name (City, State, Country)" },
-        date: { type: Type.STRING, description: "Date (DD/MM/YYYY)" },
-        time: { type: Type.STRING, description: "Time (HH:MM:SS)" },
+        location: { type: Type.STRING },
+        date: { type: Type.STRING },
+        time: { type: Type.STRING },
       }
     }
   },
@@ -68,56 +69,100 @@ const perfectAlignmentSchema: Schema = {
             longitude: { type: Type.NUMBER }
         }
     },
-    reasoning: { type: Type.STRING, description: "Why this location matches the birth sky (e.g. 'At this longitude, it will be local noon, matching your birth time')." },
-    localDateAtReturn: { type: Type.STRING, description: "The local date at this recommended location when the solar return happens (e.g. DD/MM/YYYY)." },
-    localTimeAtReturn: { type: Type.STRING, description: "The local time at this recommended location when the solar return happens (HH:MM:SS)." }
+    reasoning: { type: Type.STRING },
+    localDateAtReturn: { type: Type.STRING },
+    localTimeAtReturn: { type: Type.STRING }
   },
   required: ["city", "country", "coordinates", "reasoning", "localDateAtReturn", "localTimeAtReturn"]
 };
+
+// Helper to parse flexible dates (YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY)
+const parseDateInput = (dateStr: string): Date => {
+    if (!dateStr) return new Date();
+    // Handle slashes DD/MM/YYYY
+    if (dateStr.includes('/')) {
+        const parts = dateStr.split('/');
+        if (parts.length === 3) {
+             // Assume DD/MM/YYYY
+             return new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+        }
+    }
+    // Handle dashes
+    if (dateStr.includes('-')) {
+        const parts = dateStr.split('-');
+        if (parts.length === 3) {
+            // If first part is 4 digits, assume YYYY-MM-DD (ISO)
+            if (parts[0].length === 4) {
+                return new Date(dateStr);
+            }
+            // Assume DD-MM-YYYY
+            return new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+        }
+    }
+    return new Date(dateStr);
+}
 
 export const analyzeAstroData = async (
   birth: AstroInput,
   current: AstroInput
 ): Promise<{ birthAnalysis: BirthAnalysis; currentAnalysis: AstroAnalysis; perfectAlignment: PerfectAlignment }> => {
   
+  // 1. Determine Target Year for Solar Return
+  const birthDateObj = parseDateInput(birth.date);
+  const currentDateObj = parseDateInput(current.date);
+  
+  let targetReturnYear = currentDateObj.getFullYear();
+  
+  // Compare month and day to see if birthday has passed in current year
+  const birthMonth = birthDateObj.getMonth();
+  const birthDay = birthDateObj.getDate();
+  const currentMonth = currentDateObj.getMonth();
+  const currentDay = currentDateObj.getDate();
+
+  // Ensure valid dates before comparing
+  if (!isNaN(birthMonth) && !isNaN(currentMonth)) {
+      if (currentMonth > birthMonth || (currentMonth === birthMonth && currentDay > birthDay)) {
+          // Birthday has passed, calculate for next year
+          targetReturnYear += 1;
+      }
+  }
+
+  // 2. Prepare context strings
   const birthTempContext = birth.useHistoricalTemperature 
-    ? "Estimate and use the historical average temperature for this specific date, time, and location based on climate data." 
-    : `User Provided Temperature: ${birth.temperature || "Not Specified (assume standard)"}`;
+    ? "Estimate historical average temperature." 
+    : `User Provided Temperature: ${birth.temperature || "Standard"}`;
 
   const currentTempContext = current.useHistoricalTemperature
-    ? "Estimate and use the historical average temperature for this specific date, time, and location."
-    : `User Provided Temperature: ${current.temperature || "Not Specified (assume standard)"}`;
+    ? "Estimate historical average temperature."
+    : `User Provided Temperature: ${current.temperature || "Standard"}`;
 
   const prompt = `
     Perform a precise Geospatial Astronomical Computation.
     
-    I have two data points:
-    1. Birth Event:
-       Location: ${birth.city}, ${birth.state}, ${birth.country}
-       Date: ${birth.date}
-       Time: ${birth.time}
-       Temperature Context: ${birthTempContext}
+    Data Point 1 (Birth):
+    Location: ${birth.city}, ${birth.state}, ${birth.country}
+    Date: ${birth.date} (Format might be YYYY-MM-DD, DD/MM/YYYY or DD-MM-YYYY)
+    Time: ${birth.time}
+    Temp Context: ${birthTempContext}
        
-    2. Current/Observer Event:
-       Location: ${current.city}, ${current.state}, ${current.country}
-       Date: ${current.date}
-       Time: ${current.time}
-       Temperature Context: ${currentTempContext}
+    Data Point 2 (Current):
+    Location: ${current.city}, ${current.state}, ${current.country}
+    Date: ${current.date}
+    Time: ${current.time}
+    Temp Context: ${currentTempContext}
 
     Task:
-    1. Calculate the specific astronomical data for BOTH events (True Solar Time, Equation of Time, Sun Position).
-       - Include the "temperature" field in the output. If historical average was requested, derive it. If user provided, echo it.
-       - **Crucial**: Explicitly return the 'coordinates' (lat/lon) you used for the calculation for both locations.
-    2. For the Birth Event, calculate the 'Solar Return' (Next Real Birthday).
-    3. For the Current/Observer Event, calculate the 'Real Birthday Observation'. 
-       - This represents the **Perfect Solar Alignment** observed from the current location.
-       - Provide the exact Local Date and Time at the ${current.city} location when the Sun reaches the exact same celestial longitude as birth.
-    4. **Perfect Alignment Calculation (Optimal Location)**: Find a location on Earth where, at the exact Universal Time (UTC) of the calculated Next Solar Return, the Sun's apparent position (Altitude and Azimuth) would match the original Birth Sun's position as closely as possible. 
-       - Essentially, find a place where the Local Solar Time at the moment of the Solar Return is approximately the same as the Local Solar Time was at birth.
-       - Return this as 'perfectAlignment', including the Local Date and Time at that specific location.
+    1. Calculate astronomical data (True Solar Time, Eq of Time, Sun Position).
+       - Explicitly return 'coordinates' (lat/lon) used.
+    2. **Solar Return Calculation**:
+       - Calculate the 'Next Solar Return' (Real Birthday) strictly for the year **${targetReturnYear}**.
+       - Verify if ${targetReturnYear} is correct based on current date vs birth date (if birth date passed, use next year).
+    3. **Real Birthday Observation**:
+       - Provide the Local Date/Time of the Solar Return observed from the Current Location.
+    4. **Perfect Alignment**:
+       - Find the optimal location on Earth for the Solar Return in ${targetReturnYear} to match birth solar geometry.
 
-    Infer Lat/Lon coordinates internally based on the city/country names.
-    Return the data in a strictly structured JSON format.
+    Infer Lat/Lon coordinates. Return JSON.
   `;
 
   try {
@@ -125,8 +170,8 @@ export const analyzeAstroData = async (
       model: 'gemini-2.5-flash',
       contents: prompt,
       config: {
-        temperature: 0, // Enforce determinism
-        thinkingConfig: { thinkingBudget: 1024 }, // Allocate budget for calculation reasoning
+        temperature: 0, 
+        thinkingConfig: { thinkingBudget: 1024 },
         responseMimeType: "application/json",
         responseSchema: {
             type: Type.OBJECT,
@@ -143,7 +188,19 @@ export const analyzeAstroData = async (
     const text = response.text;
     if (!text) throw new Error("No data returned from Gemini");
     
-    return JSON.parse(text) as { birthAnalysis: BirthAnalysis; currentAnalysis: AstroAnalysis; perfectAlignment: PerfectAlignment };
+    const data = JSON.parse(text) as { birthAnalysis: BirthAnalysis; currentAnalysis: AstroAnalysis; perfectAlignment: PerfectAlignment };
+
+    // QA OVERRIDE: Ensure Zodiac Signs match the deterministic reality (Tropical Zodiac)
+    // Gemini sometimes calculates Sidereal or constellation based, but users want Astrological (Tropical)
+    data.birthAnalysis.zodiacSign = getZodiacSign(birth.date);
+    data.currentAnalysis.zodiacSign = getZodiacSign(current.date);
+    
+    // Also update the sunPosition.constellation to reflect this for consistency in UI if preferred, 
+    // though we have a dedicated field now. Let's keep them consistent.
+    data.birthAnalysis.sunPosition.constellation = data.birthAnalysis.zodiacSign;
+    data.currentAnalysis.sunPosition.constellation = data.currentAnalysis.zodiacSign;
+
+    return data;
   } catch (error) {
     console.error("Gemini Astro Analysis Failed:", error);
     throw error;
@@ -152,26 +209,16 @@ export const analyzeAstroData = async (
 
 export const resolveLocationFromGeo = async (lat: number, lon: number): Promise<{ city: string; state: string; country: string; temperature: string }> => {
     const prompt = `
-      Using Google Search, find the nearest City, State (Full Name, e.g. New York), Country and the CURRENT REAL-TIME temperature in Celsius for coordinates: ${lat}, ${lon}.
-      
-      Return the result as a valid JSON object with keys:
-      - city
-      - state
-      - country
-      - temperature (number only)
-      
-      Example output: {"city": "Paris", "state": "Ile-de-France", "country": "France", "temperature": "12"}
-      Do NOT wrap in markdown.
+      Using Google Search, find the nearest City, State (Full Name), Country and CURRENT REAL-TIME temperature (Celsius) for: ${lat}, ${lon}.
+      IMPORTANT: For the State/Province, use the official local spelling including accents (e.g. use 'São Paulo' instead of 'Sao Paulo', 'Yucatán' instead of 'Yucatan') to match standard database lists.
+      Return JSON: {"city": "...", "state": "...", "country": "...", "temperature": "..."}
     `;
     
     try {
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: prompt,
-            config: {
-                tools: [{ googleSearch: {} }]
-                // Note: responseSchema is not supported when using googleSearch tool
-            }
+            config: { tools: [{ googleSearch: {} }] }
         });
         
         const text = response.text || "{}";
@@ -183,11 +230,9 @@ export const resolveLocationFromGeo = async (lat: number, lon: number): Promise<
             city: data.city || "Unknown",
             state: data.state || "",
             country: data.country || "Unknown",
-            // Clean temperature string to be just numbers/decimals/minuses
             temperature: data.temperature ? String(data.temperature).replace(/[^0-9.-]/g, '') : ""
         };
     } catch (e) {
-        console.error("Location/Weather resolution failed", e);
         return { city: "Unknown Location", state: "", country: "", temperature: "" };
     }
 }

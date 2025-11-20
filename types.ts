@@ -28,13 +28,14 @@ export interface AstroAnalysis {
     constellation: string;
     longitude: number;
   };
+  zodiacSign: string; // Strictly the Tropical Zodiac sign based on date
   moonPosition?: {
     phase: string;
     constellation: string;
   };
   cosmicFact: string;
   equationOfTime: string;
-  temperature: string; // New field for the environmental context
+  temperature: string;
   realBirthdayObservation?: RealBirthdayObservation;
 }
 

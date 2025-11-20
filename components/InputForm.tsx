@@ -1,5 +1,5 @@
-import React from 'react';
-import { MapPin, Calendar, Clock, Locate, Globe, Map, Thermometer } from 'lucide-react';
+import React, { useState } from 'react';
+import { MapPin, Calendar, Clock, Locate, Globe, Map, Thermometer, Keyboard } from 'lucide-react';
 import { AstroInput } from '../types';
 import { COUNTRIES, STATES_BY_COUNTRY } from '../data/locations';
 
@@ -12,13 +12,13 @@ interface InputFormProps {
 }
 
 const InputForm: React.FC<InputFormProps> = ({ title, data, onChange, onGetCurrentLocation, isLoadingLocation }) => {
+  const [isManualDate, setIsManualDate] = useState(false);
   
   const availableStates = STATES_BY_COUNTRY[data.country] || [];
   const hasDefinedStates = availableStates.length > 0;
 
   const handleCountryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     onChange('country', e.target.value);
-    // Reset state when country changes
     onChange('state', '');
   };
 
@@ -116,14 +116,26 @@ const InputForm: React.FC<InputFormProps> = ({ title, data, onChange, onGetCurre
         {/* Date & Time */}
         <div className="grid grid-cols-2 gap-4 pt-2">
           <div className="relative">
-            <label className="block text-xs text-gray-400 mb-1 ml-1 uppercase tracking-wider">Date</label>
+            <div className="flex justify-between items-center mb-1">
+                <label className="block text-xs text-gray-400 uppercase tracking-wider ml-1">Date</label>
+                <button 
+                    type="button"
+                    onClick={() => setIsManualDate(!isManualDate)}
+                    className="text-xs px-3 py-1 bg-space-600/50 rounded-md text-space-accent hover:text-white hover:bg-space-600 flex items-center gap-1 transition-all border border-transparent hover:border-space-500"
+                    title="Toggle between Date Picker and Manual Type"
+                >
+                    <Keyboard size={12} />
+                    {isManualDate ? 'Pick' : 'Type'}
+                </button>
+            </div>
             <div className="relative">
               <Calendar className="absolute left-3 top-3 text-space-accent" size={18} />
               <input
-                type="date"
+                type={isManualDate ? "text" : "date"}
                 value={data.date}
                 onChange={(e) => onChange('date', e.target.value)}
-                className="w-full bg-space-800 border border-space-600 text-white pl-10 pr-2 py-2.5 rounded-lg focus:ring-2 focus:ring-space-accent focus:border-transparent outline-none transition-all [&::-webkit-calendar-picker-indicator]:invert"
+                placeholder={isManualDate ? "DD/MM/YYYY" : ""}
+                className={`w-full bg-space-800 border border-space-600 text-white pl-10 pr-2 py-2.5 rounded-lg focus:ring-2 focus:ring-space-accent focus:border-transparent outline-none transition-all ${!isManualDate && '[&::-webkit-calendar-picker-indicator]:invert'}`}
               />
             </div>
           </div>

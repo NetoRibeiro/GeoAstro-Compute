@@ -8,7 +8,7 @@ interface AstroCardProps {
 }
 
 const ZodiacIcon = ({ name }: { name: string }) => {
-  const n = name.toLowerCase();
+  const n = (name || "").toLowerCase();
   const className = "w-6 h-6 text-space-accent";
   
   // Simplified paths for zodiac signs
@@ -30,7 +30,7 @@ const ZodiacIcon = ({ name }: { name: string }) => {
 };
 
 const MoonPhaseIcon = ({ phase }: { phase: string }) => {
-  const p = phase.toLowerCase().trim();
+  const p = (phase || "").toLowerCase().trim();
   const size = 42;
   const r = 18;
   const cx = 21;
@@ -131,6 +131,9 @@ const MoonPhaseIcon = ({ phase }: { phase: string }) => {
 const AstroCard: React.FC<AstroCardProps> = ({ type, data }) => {
   const isBirth = type === 'birth';
   const birthData = isBirth ? (data as BirthAnalysis) : null;
+  
+  // Use the pre-calculated zodiac sign from data, fallback to constellation if missing
+  const displayZodiac = data.zodiacSign || data.sunPosition?.constellation || "Unknown";
 
   return (
     <div className={`h-full relative overflow-hidden p-6 rounded-2xl border ${isBirth ? 'border-amber-500/30 bg-amber-900/10' : 'border-cyan-500/30 bg-cyan-900/10'} backdrop-blur-md transition-all duration-500 hover:scale-[1.01]`}>
@@ -197,12 +200,12 @@ const AstroCard: React.FC<AstroCardProps> = ({ type, data }) => {
                 <span className="text-lg font-bold text-white">{data.sunPosition.altitude.toFixed(2)}°</span>
             </div>
             <div className="col-span-2 border-t border-space-600 pt-2 mt-1">
-                <span className="text-xs text-gray-500 block">Celestial Longitude</span>
+                <span className="text-xs text-gray-500 block">Zodiac Sign</span>
                 <div className="flex justify-between items-end">
                     <span className="text-xl font-bold text-white">{data.sunPosition.longitude.toFixed(2)}°</span>
                     <div className="flex items-center gap-1">
-                        <ZodiacIcon name={data.sunPosition.constellation} />
-                        <span className="text-sm text-space-accent font-medium">{data.sunPosition.constellation}</span>
+                        <ZodiacIcon name={displayZodiac} />
+                        <span className="text-sm text-space-accent font-medium">{displayZodiac}</span>
                     </div>
                 </div>
             </div>
@@ -230,8 +233,8 @@ const AstroCard: React.FC<AstroCardProps> = ({ type, data }) => {
              {/* Temperature */}
              {data.temperature && (
                 <div className="flex-1 flex items-center gap-3 p-3 bg-space-800/30 rounded-lg border border-space-700">
-                    <div className={`p-1.5 rounded-full shrink-0 ${data.temperature.includes('Estimate') || data.temperature.includes('Avg') ? 'bg-orange-500/20' : 'bg-blue-500/20'}`}>
-                         <Thermometer className={`${data.temperature.includes('Estimate') || data.temperature.includes('Avg') ? 'text-orange-400' : 'text-blue-400'}`} size={24} />
+                    <div className={`p-1.5 rounded-full shrink-0 ${data.temperature && (data.temperature.includes('Estimate') || data.temperature.includes('Avg')) ? 'bg-orange-500/20' : 'bg-blue-500/20'}`}>
+                         <Thermometer className={`${data.temperature && (data.temperature.includes('Estimate') || data.temperature.includes('Avg')) ? 'text-orange-400' : 'text-blue-400'}`} size={24} />
                     </div>
                     <div className="flex flex-col overflow-hidden">
                         <span className="text-[10px] uppercase tracking-wider text-gray-500">Temp</span>
@@ -253,7 +256,7 @@ const AstroCard: React.FC<AstroCardProps> = ({ type, data }) => {
       </div>
 
       {/* Birth Special: Real Solar Birthday */}
-      {birthData && (
+      {birthData && birthData.nextSolarReturn && (
         <div className="mt-6 p-4 rounded-xl bg-gradient-to-r from-amber-900/40 to-purple-900/40 border border-amber-500/20">
             <h3 className="text-amber-200 font-semibold mb-2 flex items-center gap-2">
                 <span className="text-xl">🎂</span> True Solar Birthday
@@ -263,7 +266,7 @@ const AstroCard: React.FC<AstroCardProps> = ({ type, data }) => {
             </p>
             <div className="flex justify-between items-end">
                 <div className="text-2xl font-bold text-white">
-                    {birthData.nextSolarReturn.includes('T') ? birthData.nextSolarReturn.split('T')[0] : birthData.nextSolarReturn}
+                    {String(birthData.nextSolarReturn).includes('T') ? birthData.nextSolarReturn.split('T')[0] : birthData.nextSolarReturn}
                 </div>
                 <div className="text-right">
                      <span className="block text-3xl font-bold text-amber-400">{Math.ceil(birthData.daysUntilSolarReturn)}</span>
