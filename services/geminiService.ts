@@ -202,6 +202,31 @@ export const analyzeAstroData = async (
     data.birthAnalysis.sunPosition.constellation = data.birthAnalysis.zodiacSign;
     data.currentAnalysis.sunPosition.constellation = data.currentAnalysis.zodiacSign;
 
+    // QA OVERRIDE: Recalculate Days Until Solar Return to ensure mathematical accuracy
+    const nowObj = parseDateInput(current.date);
+    // Add time if available to be precise, otherwise default to start of day
+    if (current.time) {
+        const [hours, minutes, seconds] = current.time.split(':').map(Number);
+        if (!isNaN(hours)) {
+            nowObj.setHours(hours, minutes || 0, seconds || 0);
+        }
+    }
+
+    if (data.birthAnalysis.nextSolarReturn) {
+        const nextReturnDate = new Date(data.birthAnalysis.nextSolarReturn);
+        if (!isNaN(nextReturnDate.getTime()) && !isNaN(nowObj.getTime())) {
+            const diffTime = nextReturnDate.getTime() - nowObj.getTime();
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            data.birthAnalysis.daysUntilSolarReturn = diffDays;
+            
+            // Sync current analysis if used there
+            if (data.currentAnalysis) {
+                data.currentAnalysis.daysUntilSolarReturn = diffDays;
+            }
+        }
+    }
+
     return data;
   } catch (error) {
     console.error("Gemini Astro Analysis Failed:", error);
