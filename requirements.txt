@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+skyfield
+pydantic
+geopy
+python-multipart
+pytz

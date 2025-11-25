@@ -1,3 +1,4 @@
+
 export interface AstroInput {
   city: string;
   state: string;
@@ -33,6 +34,11 @@ export interface AstroAnalysis {
     phase: string;
     constellation: string;
   };
+  planets?: Record<string, {
+    longitude: number;
+    zodiacSign: string;
+    degree: number;
+  }>;
   cosmicFact: string;
   equationOfTime: string;
   temperature: string;
@@ -49,6 +55,7 @@ export interface BirthAnalysis extends AstroAnalysis {
 export interface PerfectAlignment {
   city: string;
   country: string;
+  countryCode?: string;
   coordinates: {
     latitude: number;
     longitude: number;
