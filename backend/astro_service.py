@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 import pytz
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut
+from skyfield.api import Angle
+import math
 
 # Load Ephemeris (will download if not present)
 eph = load('de421.bsp')
@@ -337,4 +339,136 @@ def calculate_perfect_alignment(birth_date, birth_time, birth_city, birth_countr
         "reasoning": reasoning,
         "localDateAtReturn": local_date_str,
         "localTimeAtReturn": local_time_str
+    }
+
+def calculate_arroyo_analysis(birth_date, birth_time, city, country, state=None):
+    lat, lon = get_lat_lon(city, country, state)
+    
+    dt_str = f"{birth_date} {birth_time}"
+    try:
+        dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
+        
+    ts = load.timescale()
+    t = ts.from_datetime(dt.replace(tzinfo=pytz.utc))
+    
+    observer = earth + wgs84.latlon(lat, lon)
+    
+    # Zodiac Data
+    zodiac_signs = [
+        "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", 
+        "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"
+    ]
+    
+    elements = {
+        "Fire": ["Aries", "Leo", "Sagittarius"],
+        "Earth": ["Taurus", "Virgo", "Capricorn"],
+        "Air": ["Gemini", "Libra", "Aquarius"],
+        "Water": ["Cancer", "Scorpio", "Pisces"]
+    }
+    
+    modalities = {
+        "Cardinal": ["Aries", "Cancer", "Libra", "Capricorn"],
+        "Fixed": ["Taurus", "Leo", "Scorpio", "Aquarius"],
+        "Mutable": ["Gemini", "Virgo", "Sagittarius", "Pisces"]
+    }
+    
+    # Calculate Positions
+    bodies = {
+        'Sun': sun,
+        'Moon': moon,
+        'Mercury': eph['mercury'],
+        'Venus': eph['venus'],
+        'Mars': eph['mars'],
+        'Jupiter': eph['jupiter_barycenter'],
+        'Saturn': eph['saturn_barycenter'],
+        'Uranus': eph['uranus_barycenter'],
+        'Neptune': eph['neptune_barycenter'],
+        'Pluto': eph['pluto_barycenter']
+    }
+    
+    positions = {}
+    
+    for name, body in bodies.items():
+        astrometric = observer.at(t).observe(body)
+        _, lon_ecl, _ = astrometric.apparent().ecliptic_latlon()
+        lon_deg = lon_ecl.degrees
+        z_index = int(lon_deg / 30)
+        z_sign = zodiac_signs[z_index % 12]
+        positions[name] = {"sign": z_sign, "longitude": lon_deg}
+
+    # Calculate Ascendant (Approximate)
+    from skyfield.api import Angle
+    import math
+    
+    # Get GAST from skyfield
+    gast_hours = t.gast
+    lst_hours = gast_hours + lon / 15.0
+    lst_rad = lst_hours * 15.0 * (math.pi / 180.0)
+    
+    lat_rad = lat * (math.pi / 180.0)
+    eps_rad = 23.44 * (math.pi / 180.0) # Approx obliquity
+    
+    # Formula for Ascendant
+    y = -math.cos(lst_rad)
+    x = math.sin(lst_rad) * math.cos(eps_rad) + math.tan(lat_rad) * math.sin(eps_rad)
+    
+    asc_rad = math.atan2(y, x)
+    asc_deg = asc_rad * (180.0 / math.pi)
+    if asc_deg < 0: asc_deg += 360.0
+    
+    asc_index = int(asc_deg / 30)
+    asc_sign = zodiac_signs[asc_index % 12]
+    positions['Ascendant'] = {"sign": asc_sign, "longitude": asc_deg}
+    
+    # Scoring
+    scores = {
+        "Fire": 0, "Earth": 0, "Air": 0, "Water": 0,
+        "Cardinal": 0, "Fixed": 0, "Mutable": 0
+    }
+    
+    weights = {
+        'Sun': 2, 'Moon': 2, 'Ascendant': 2,
+        'Mercury': 1, 'Venus': 1, 'Mars': 1,
+        'Jupiter': 1, 'Saturn': 1, 'Uranus': 1, 'Neptune': 1, 'Pluto': 1
+    }
+    
+    for name, data in positions.items():
+        sign = data['sign']
+        weight = weights.get(name, 1)
+        
+        # Find Element
+        for elem, signs in elements.items():
+            if sign in signs:
+                scores[elem] += weight
+                
+        # Find Modality
+        for mod, signs in modalities.items():
+            if sign in signs:
+                scores[mod] += weight
+                
+    # Interpretation
+    dominant_element = max(elements.keys(), key=lambda k: scores[k])
+    weakest_element = min(elements.keys(), key=lambda k: scores[k])
+    
+    interpretation = ""
+    if dominant_element == "Fire":
+        interpretation = "You have a strong emphasis on Fire, suggesting a spirited, intuitive, and enthusiastic approach to life. You likely value freedom and self-expression."
+    elif dominant_element == "Earth":
+        interpretation = "Your chart is grounded in Earth, indicating a practical, reliable, and sensory-oriented nature. You likely value stability and tangible results."
+    elif dominant_element == "Air":
+        interpretation = "With a dominance of Air, you are likely intellectually driven, communicative, and social. You value ideas, relationships, and objectivity."
+    elif dominant_element == "Water":
+        interpretation = "A Water emphasis suggests a deep emotional nature, intuition, and sensitivity. You likely value connection, healing, and the mysteries of life."
+        
+    if scores[weakest_element] <= 2:
+        interpretation += f" However, you may need to consciously cultivate {weakest_element} energy, as it is less naturally available to you."
+
+    return {
+        "scores": scores,
+        "positions": positions,
+        "dominantElement": dominant_element,
+        "dominantModality": max(modalities.keys(), key=lambda k: scores[k]),
+        "interpretation": interpretation
     }

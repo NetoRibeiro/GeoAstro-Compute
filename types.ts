@@ -76,3 +76,22 @@ export enum AnalysisStatus {
   SUCCESS = 'SUCCESS',
   ERROR = 'ERROR',
 }
+
+export interface ArroyoAnalysis {
+  scores: {
+    Fire: number;
+    Earth: number;
+    Air: number;
+    Water: number;
+    Cardinal: number;
+    Fixed: number;
+    Mutable: number;
+  };
+  positions: Record<string, {
+    sign: string;
+    longitude: number;
+  }>;
+  dominantElement: string;
+  dominantModality: string;
+  interpretation: string;
+}

@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from typing import Optional
 import uvicorn
 
-app = FastAPI(title="GeoAstro Compute API")
+app = FastAPI(title="GeoAstro Compute API", version="1.1.012")
 
 # CORS
 app.add_middleware(
@@ -75,6 +75,22 @@ def perfect_alignment(data: PerfectAlignmentInput):
             data.birth_state,
             data.solar_return
         )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+class ArroyoInput(BaseModel):
+    birth_date: str
+    birth_time: str
+    city: str
+    country: str
+    state: Optional[str] = None
+
+@app.post("/arroyo-analysis")
+def arroyo_analysis(data: ArroyoInput):
+    from astro_service import calculate_arroyo_analysis
+    try:
+        result = calculate_arroyo_analysis(data.birth_date, data.birth_time, data.city, data.country, data.state)
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

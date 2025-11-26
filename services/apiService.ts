@@ -1,5 +1,5 @@
 
-import { AstroInput, AstroAnalysis, BirthAnalysis, PerfectAlignment } from "../types";
+import { AstroInput, AstroAnalysis, BirthAnalysis, PerfectAlignment, ArroyoAnalysis } from "../types";
 import { GoogleGenAI } from "@google/genai";
 
 const API_URL = "http://localhost:8000";
@@ -210,14 +210,46 @@ export const analyzeAstroData = async (
         console.error("[API] Step 5 ERROR: Failed to calculate perfect alignment:", e);
     }
 
-    console.log('[API] Step 5.1: perfectAlignment final:', perfectAlignment);
+    // 6. Fetch Arroyo Analysis
+    console.log('[API] Step 6: Fetching Arroyo analysis...');
+    let arroyoAnalysis: ArroyoAnalysis = {
+        scores: { Fire: 0, Earth: 0, Air: 0, Water: 0, Cardinal: 0, Fixed: 0, Mutable: 0 },
+        positions: {},
+        dominantElement: "Unknown",
+        dominantModality: "Unknown",
+        interpretation: "Analysis unavailable."
+    };
+
+    try {
+        const arroyoRes = await fetch(`${API_URL}/arroyo-analysis`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                birth_date: birth.date,
+                birth_time: birth.time,
+                city: birth.city,
+                country: birth.country,
+                state: birth.state
+            })
+        });
+
+        if (arroyoRes.ok) {
+            arroyoAnalysis = await arroyoRes.json();
+            console.log('[API] Step 6 SUCCESS: Arroyo analysis received:', arroyoAnalysis);
+        } else {
+            console.warn('[API] Step 6 WARNING: Arroyo analysis request not OK:', arroyoRes.status);
+        }
+    } catch (e) {
+        console.error("[API] Step 6 ERROR: Failed to fetch Arroyo analysis:", e);
+    }
 
     const result = {
         birthAnalysis,
         currentAnalysis,
-        perfectAlignment
+        perfectAlignment,
+        arroyoAnalysis
     };
-    console.log('[API] Step 6: Returning final result object:', result);
+    console.log('[API] Step 7: Returning final result object:', result);
     return result;
 };
 
