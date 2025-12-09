@@ -92,7 +92,7 @@ const App: React.FC = () => {
 
         // Validation: Ensure Location, Country, Date, and Time are present
         if (!birthData.city || !birthData.country || !birthData.date || !birthData.time ||
-            !currentData.city || !currentData.country) {
+            !currentData.city || !currentData.country || !currentData.date || !currentData.time) {
             console.log('[STEP 2] Validation FAILED - missing required fields');
             setErrorMsg("Please fill in all required fields (Location, Country, Date, Time) for both sections.");
             return;
