@@ -4,6 +4,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 import uvicorn
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+import os
 
 app = FastAPI(title="GeoAstro Compute API", version="1.1.012")
 
@@ -25,9 +28,7 @@ class AstroInput(BaseModel):
     temperature: Optional[str] = None
     useHistoricalTemperature: bool = False
 
-@app.get("/")
-def read_root():
-    return {"message": "GeoAstro Compute API is running"}
+
 
 @app.post("/analyze")
 def analyze_astro(data: AstroInput):
@@ -94,6 +95,33 @@ def arroyo_analysis(data: ArroyoInput):
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/health")
+def health_check():
+    return {"message": "GeoAstro Compute API is running"}
+
+@app.get("/")
+def read_root():
+    if os.path.exists("dist/index.html"):
+        return FileResponse("dist/index.html")
+    return {"message": "GeoAstro Compute API is running (Frontend not built)"}
+
+# Mount static assets
+if os.path.exists("dist/assets"):
+    app.mount("/assets", StaticFiles(directory="dist/assets"), name="assets")
+
+@app.get("/{full_path:path}")
+async def catch_all(full_path: str):
+    if full_path.startswith("api"):
+        raise HTTPException(status_code=404, detail="Not Found")
+    
+    file_path = os.path.join("dist", full_path)
+    if os.path.exists(file_path) and os.path.isfile(file_path):
+        return FileResponse(file_path)
+    
+    if os.path.exists("dist/index.html"):
+        return FileResponse("dist/index.html")
+    return HTTPException(status_code=404, detail="Not Found")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

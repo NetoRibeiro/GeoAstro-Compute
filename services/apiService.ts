@@ -2,7 +2,7 @@
 import { AstroInput, AstroAnalysis, BirthAnalysis, PerfectAlignment, ArroyoAnalysis } from "../types";
 import { GoogleGenAI } from "@google/genai";
 
-const API_URL = "http://localhost:8000";
+const API_URL = import.meta.env.DEV ? "http://localhost:8000" : "";
 
 // Keep Gemini for the "Cosmic Fact" and "Reasoning" if we want, 
 // or we can move that to the backend later. For now, let's keep the structure
