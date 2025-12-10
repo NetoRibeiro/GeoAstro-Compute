@@ -32,11 +32,14 @@ class AstroInput(BaseModel):
 
 @app.post("/analyze")
 def analyze_astro(data: AstroInput):
-    from astro_service import calculate_astronomy
     try:
+        from backend.astro_service import calculate_astronomy
         result = calculate_astronomy(data.city, data.country, data.date, data.time, data.state)
         return result
     except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"ERROR processing analysis: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 class SolarReturnInput(BaseModel):
@@ -49,7 +52,7 @@ class SolarReturnInput(BaseModel):
 
 @app.post("/solar-return")
 def solar_return(data: SolarReturnInput):
-    from astro_service import calculate_solar_return
+    from backend.astro_service import calculate_solar_return
     try:
         result = calculate_solar_return(data.birth_date, data.birth_time, data.target_year, data.city, data.country, data.state)
         return {"solar_return": result}
@@ -66,7 +69,7 @@ class PerfectAlignmentInput(BaseModel):
 
 @app.post("/perfect-alignment")
 def perfect_alignment(data: PerfectAlignmentInput):
-    from astro_service import calculate_perfect_alignment
+    from backend.astro_service import calculate_perfect_alignment
     try:
         result = calculate_perfect_alignment(
             data.birth_date,
@@ -89,7 +92,7 @@ class ArroyoInput(BaseModel):
 
 @app.post("/arroyo-analysis")
 def arroyo_analysis(data: ArroyoInput):
-    from astro_service import calculate_arroyo_analysis
+    from backend.astro_service import calculate_arroyo_analysis
     try:
         result = calculate_arroyo_analysis(data.birth_date, data.birth_time, data.city, data.country, data.state)
         return result

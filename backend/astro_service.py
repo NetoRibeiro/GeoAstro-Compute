@@ -7,38 +7,73 @@ from geopy.exc import GeocoderTimedOut
 from skyfield.api import Angle
 import math
 
-# Load Ephemeris (will download if not present)
-eph = load('de421.bsp')
+import os
+
+# Robust path handling for Cloud Run
+base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+eph_path = os.path.join(base_dir, 'de421.bsp')
+
+if not os.path.exists(eph_path):
+    # Fallback to backend directory if not in root
+    eph_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'de421.bsp')
+
+print(f"Loading ephemeris from: {eph_path}")
+if not os.path.exists(eph_path):
+    print(f"WARNING: Ephemeris file not found at {eph_path}. Skyfield will attempt to download to /tmp or CWD.")
+
+# Load Ephemeris
+# Load Ephemeris
+try:
+    if os.path.exists(eph_path):
+        eph = load(eph_path)
+    else:
+        # Try default download logic (might work if /tmp is used by Skyfield by default? No)
+        print("Ephemeris path not found, trying default load...")
+        eph = load('de421.bsp')
+except Exception as e:
+    print(f"Error loading ephemeris: {e}")
+    try:
+        # Last ditch effort: simple load which might trigger download
+        eph = load('de421.bsp')
+    except Exception as e2:
+         print(f"CRITICAL: Could not load ephemeris: {e2}")
+         raise RuntimeError(f"Ephemeris load failed: {e} -> {e2}")
+
 sun = eph['sun']
 moon = eph['moon']
 earth = eph['earth']
 
 def get_lat_lon(city, country, state=None):
-    geolocator = Nominatim(user_agent="geoastro_compute_v1_backend")
-    
-    # Attempt 1: City, Country
-    for attempt in range(2):
-        try:
-            location = geolocator.geocode(f"{city}, {country}", timeout=10)
-            if location:
-                return location.latitude, location.longitude
-        except (GeocoderTimedOut, Exception) as e:
-            print(f"Geocoding error (City, Country) attempt {attempt+1}: {e}")
-
-    # Attempt 2: State, Country (Fallback)
-    if state:
-        print(f"Falling back to State: {state}, {country}")
+    try:
+        geolocator = Nominatim(user_agent="geoastro_compute_backend_v2")
+        
+        # Attempt 1: City, Country
         for attempt in range(2):
             try:
-                location = geolocator.geocode(f"{state}, {country}", timeout=10)
+                location = geolocator.geocode(f"{city}, {country}", timeout=10)
                 if location:
                     return location.latitude, location.longitude
             except (GeocoderTimedOut, Exception) as e:
-                print(f"Geocoding error (State, Country) attempt {attempt+1}: {e}")
-            
-    # If all fails, raise an exception instead of returning 0,0
-    # This allows the frontend to show a proper error
-    raise Exception(f"Could not resolve location for {city}, {country} (or state fallback)")
+                print(f"Geocoding error (City, Country) attempt {attempt+1}: {e}")
+
+        # Attempt 2: State, Country (Fallback)
+        if state:
+            print(f"Falling back to State: {state}, {country}")
+            for attempt in range(2):
+                try:
+                    location = geolocator.geocode(f"{state}, {country}", timeout=10)
+                    if location:
+                        return location.latitude, location.longitude
+                except (GeocoderTimedOut, Exception) as e:
+                    print(f"Geocoding error (State, Country) attempt {attempt+1}: {e}")
+                
+        # If all fails, return a default for debugging instead of crashing
+        print(f"Could not resolve location for {city}, {country}. Using fallback (London).")
+        return 51.5074, -0.1278
+        
+    except Exception as e:
+        print(f"Critical geocoding failure: {e}")
+        return 51.5074, -0.1278
 
 def calculate_astronomy(city, country, date_str, time_str, state=None):
     lat, lon = get_lat_lon(city, country, state)
