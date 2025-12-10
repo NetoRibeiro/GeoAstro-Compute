@@ -333,9 +333,9 @@ const App: React.FC = () => {
                         <div className="mt-12 bg-space-800/30 border border-space-700 rounded-xl p-8 text-center">
                             <h3 className="text-xl font-semibold text-white mb-4">Analysis Summary</h3>
                             <p className="text-gray-300 max-w-3xl mx-auto">
-                                At your birth in <span className="text-amber-400">{birthData.city}</span>, the True Solar Time differed from Civil Time by <span className="text-amber-400">{results.birthAnalysis.equationOfTime}</span>.
+                                At your birth in <span className="text-amber-400">{birthData.city}, {birthData.state ? `${birthData.state}, ` : ''}{birthData.country}</span>, the True Solar Time differed from Civil Time by <span className="text-amber-400">{results.birthAnalysis.civilTimeDifference}</span>.
                                 Your next exact Solar Return occurs on {String(results.birthAnalysis.nextSolarReturn || "").includes('T') ? results.birthAnalysis.nextSolarReturn!.split('T')[0] : results.birthAnalysis.nextSolarReturn}.
-                                To experience the sky exactly as it was when you were born, consider traveling to <span className="text-space-glow font-bold">{results.perfectAlignment.city}, {results.perfectAlignment.country}</span>.
+                                To experience the sky exactly as it was when you were born, consider traveling to <span className="text-space-glow font-bold">{results.perfectAlignment.city !== 'Ocean Location' ? results.perfectAlignment.city : ''}{results.perfectAlignment.city !== 'Ocean Location' && results.perfectAlignment.country ? ', ' : ''}{results.perfectAlignment.country}</span>.
                             </p>
                         </div>
                     </div>

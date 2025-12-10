@@ -285,37 +285,103 @@ def calculate_perfect_alignment(birth_date, birth_time, birth_city, birth_countr
     best_lat = lat # Latitude stays the same to match Declination effect on Alt/Az (mostly)
     best_lon = required_lon
     
-    # Reverse Geocode to find city
+    # Reverse Geocode to find city with improved fallback logic
     geolocator = Nominatim(user_agent="geoastro_compute_v1_backend")
     city = "Unknown"
     country = "Unknown"
     country_code = None
     
-    try:
-        # Try to find a city near this location
-        # We might be in the ocean, so we might not find anything.
-        # reverse() returns a location.
-        location = geolocator.reverse((best_lat, best_lon), language='en', timeout=10)
-        if location:
-            address = location.raw.get('address', {})
-            city = address.get('city') or address.get('town') or address.get('village') or address.get('hamlet') or "Unknown"
-            country = address.get('country') or "Unknown"
-            country_code = address.get('country_code')
+    # Try reverse geocoding with retry logic
+    for attempt in range(2):
+        try:
+            # Try to find a location near these coordinates
+            # reverse() returns a location object with address details
+            location = geolocator.reverse((best_lat, best_lon), language='en', timeout=10, zoom=10)
             
-            if city == "Unknown":
-                # Try to find a larger city nearby? 
-                # For now, just accept what we have.
-                pass
-    except Exception as e:
-        print(f"Reverse geocoding error: {e}")
+            if location:
+                address = location.raw.get('address', {})
+                
+                # Try multiple address fields in order of preference
+                city = (
+                    address.get('city') or 
+                    address.get('town') or 
+                    address.get('village') or 
+                    address.get('municipality') or
+                    address.get('hamlet') or
+                    address.get('county') or
+                    address.get('state_district') or
+                    address.get('state') or
+                    address.get('region') or
+                    None
+                )
+                
+                # Get country information
+                country = address.get('country') or "Unknown"
+                country_code = address.get('country_code')
+                
+                # If still no city, try to extract from display_name
+                if not city and location.raw.get('display_name'):
+                    display_name = location.raw.get('display_name')
+                    # display_name format is usually: "Place, Region, Country"
+                    parts = [p.strip() for p in display_name.split(',')]
+                    if len(parts) >= 2:
+                        # Use the first meaningful part as city
+                        city = parts[0] if parts[0] else None
+                
+                # If we found a location but no specific city, provide descriptive fallback
+                if not city:
+                    if address.get('ocean') or address.get('sea'):
+                        # Location is in ocean/sea
+                        ocean_name = address.get('ocean') or address.get('sea')
+                        city = f"Ocean ({ocean_name})" if ocean_name else "Ocean Location"
+                    elif country != "Unknown":
+                        # We have country but no city - use region/state
+                        region = address.get('state') or address.get('region')
+                        city = f"{region}, {country}" if region else country
+                    else:
+                        city = "Remote Location"
+                
+                break  # Success, exit retry loop
+                
+        except GeocoderTimedOut:
+            print(f"Reverse geocoding timeout (attempt {attempt + 1}/2)")
+            if attempt == 1:  # Last attempt failed
+                city = "Location Unavailable"
+        except Exception as e:
+            print(f"Reverse geocoding error (attempt {attempt + 1}/2): {e}")
+            if attempt == 1:  # Last attempt failed
+                city = "Geocoding Error"
         
-    # Fallback for country if unknown (simple bounding boxes)
+    # Fallback for country if unknown (improved ocean and region detection)
     if country == "Unknown":
-        if 50 <= best_lat <= 80 and 20 <= best_lon <= 180:
+        # Check if location is in ocean based on coordinates
+        if -180 <= best_lon <= -30:  # Western Hemisphere oceans
+            if 0 <= best_lat <= 70:
+                country = "North Atlantic Ocean"
+                city = "Ocean Location" if city == "Unknown" else city
+            elif -60 <= best_lat < 0:
+                country = "South Atlantic Ocean"
+                city = "Ocean Location" if city == "Unknown" else city
+            elif best_lon < -100:  # Pacific side
+                if best_lat >= 0:
+                    country = "North Pacific Ocean"
+                    city = "Ocean Location" if city == "Unknown" else city
+                else:
+                    country = "South Pacific Ocean"
+                    city = "Ocean Location" if city == "Unknown" else city
+        elif 30 <= best_lon <= 180:  # Eastern Hemisphere oceans
+            if best_lat >= 0:
+                country = "North Pacific Ocean"
+                city = "Ocean Location" if city == "Unknown" else city
+            else:
+                country = "Indian Ocean"
+                city = "Ocean Location" if city == "Unknown" else city
+        # Land-based fallbacks
+        elif 50 <= best_lat <= 80 and 20 <= best_lon <= 180:
             country = "Russia"
             country_code = "ru"
         elif -10 <= best_lat <= 60 and -10 <= best_lon <= 40:
-            country = "Europe/Africa" # Simplified
+            country = "Europe/Africa"
         elif 25 <= best_lat <= 50 and -130 <= best_lon <= -65:
             country = "United States"
             country_code = "us"
