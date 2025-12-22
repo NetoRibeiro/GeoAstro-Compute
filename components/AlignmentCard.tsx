@@ -49,7 +49,13 @@ const AlignmentCard: React.FC<AlignmentCardProps> = ({ data }) => {
 
         {/* Location Highlight */}
         <div className="bg-gradient-to-br from-space-600 to-space-800 rounded-xl p-5 border border-space-500 mb-6 relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+          <a
+            href={`https://www.google.com/maps?q=${data.coordinates?.latitude},${data.coordinates?.longitude}`}
+            target="_blank"
+            rel="noreferrer"
+            className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity cursor-pointer block"
+            title="View on Maps"
+          >
             {data.countryCode ? (
               <img
                 src={`https://raw.githubusercontent.com/djaiss/mapsicon/master/all/${data.countryCode.toLowerCase()}/vector.svg`}
@@ -64,7 +70,7 @@ const AlignmentCard: React.FC<AlignmentCardProps> = ({ data }) => {
             <div className={`${data.countryCode ? 'hidden' : ''}`}>
               <Plane size={80} />
             </div>
-          </div>
+          </a>
 
           <div className="relative z-10">
             <div className="flex items-start gap-2 mb-1">
@@ -111,18 +117,6 @@ const AlignmentCard: React.FC<AlignmentCardProps> = ({ data }) => {
           <div className="text-xs text-gray-400 italic border-l-2 border-space-accent pl-3">
             "{data.reasoning}"
           </div>
-        </div>
-
-        {/* CTA Hint */}
-        <div className="mt-6 text-center">
-          <a
-            href={`https://www.google.com/maps/search/?api=1&query=${data.city},${data.country}`}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-2 text-xs text-space-glow hover:text-white transition-colors"
-          >
-            View on Maps <span>→</span>
-          </a>
         </div>
       </div>
     );

@@ -4,39 +4,76 @@ from datetime import datetime, timedelta
 import pytz
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut
+from skyfield.api import Angle
+import math
 
-# Load Ephemeris (will download if not present)
-eph = load('de421.bsp')
+import os
+
+# Robust path handling for Cloud Run
+base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+eph_path = os.path.join(base_dir, 'de421.bsp')
+
+if not os.path.exists(eph_path):
+    # Fallback to backend directory if not in root
+    eph_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'de421.bsp')
+
+print(f"Loading ephemeris from: {eph_path}")
+if not os.path.exists(eph_path):
+    print(f"WARNING: Ephemeris file not found at {eph_path}. Skyfield will attempt to download to /tmp or CWD.")
+
+# Load Ephemeris
+# Load Ephemeris
+try:
+    if os.path.exists(eph_path):
+        eph = load(eph_path)
+    else:
+        # Try default download logic (might work if /tmp is used by Skyfield by default? No)
+        print("Ephemeris path not found, trying default load...")
+        eph = load('de421.bsp')
+except Exception as e:
+    print(f"Error loading ephemeris: {e}")
+    try:
+        # Last ditch effort: simple load which might trigger download
+        eph = load('de421.bsp')
+    except Exception as e2:
+         print(f"CRITICAL: Could not load ephemeris: {e2}")
+         raise RuntimeError(f"Ephemeris load failed: {e} -> {e2}")
+
 sun = eph['sun']
 moon = eph['moon']
 earth = eph['earth']
 
 def get_lat_lon(city, country, state=None):
-    geolocator = Nominatim(user_agent="geoastro_compute_v1_backend")
-    
-    # Attempt 1: City, Country
-    for attempt in range(2):
-        try:
-            location = geolocator.geocode(f"{city}, {country}", timeout=10)
-            if location:
-                return location.latitude, location.longitude
-        except (GeocoderTimedOut, Exception) as e:
-            print(f"Geocoding error (City, Country) attempt {attempt+1}: {e}")
-
-    # Attempt 2: State, Country (Fallback)
-    if state:
-        print(f"Falling back to State: {state}, {country}")
+    try:
+        geolocator = Nominatim(user_agent="geoastro_compute_backend_v2")
+        
+        # Attempt 1: City, Country
         for attempt in range(2):
             try:
-                location = geolocator.geocode(f"{state}, {country}", timeout=10)
+                location = geolocator.geocode(f"{city}, {country}", timeout=10)
                 if location:
                     return location.latitude, location.longitude
             except (GeocoderTimedOut, Exception) as e:
-                print(f"Geocoding error (State, Country) attempt {attempt+1}: {e}")
-            
-    # If all fails, raise an exception instead of returning 0,0
-    # This allows the frontend to show a proper error
-    raise Exception(f"Could not resolve location for {city}, {country} (or state fallback)")
+                print(f"Geocoding error (City, Country) attempt {attempt+1}: {e}")
+
+        # Attempt 2: State, Country (Fallback)
+        if state:
+            print(f"Falling back to State: {state}, {country}")
+            for attempt in range(2):
+                try:
+                    location = geolocator.geocode(f"{state}, {country}", timeout=10)
+                    if location:
+                        return location.latitude, location.longitude
+                except (GeocoderTimedOut, Exception) as e:
+                    print(f"Geocoding error (State, Country) attempt {attempt+1}: {e}")
+                
+        # If all fails, return a default for debugging instead of crashing
+        print(f"Could not resolve location for {city}, {country}. Using fallback (London).")
+        return 51.5074, -0.1278
+        
+    except Exception as e:
+        print(f"Critical geocoding failure: {e}")
+        return 51.5074, -0.1278
 
 def calculate_astronomy(city, country, date_str, time_str, state=None):
     lat, lon = get_lat_lon(city, country, state)
@@ -283,37 +320,103 @@ def calculate_perfect_alignment(birth_date, birth_time, birth_city, birth_countr
     best_lat = lat # Latitude stays the same to match Declination effect on Alt/Az (mostly)
     best_lon = required_lon
     
-    # Reverse Geocode to find city
+    # Reverse Geocode to find city with improved fallback logic
     geolocator = Nominatim(user_agent="geoastro_compute_v1_backend")
     city = "Unknown"
     country = "Unknown"
     country_code = None
     
-    try:
-        # Try to find a city near this location
-        # We might be in the ocean, so we might not find anything.
-        # reverse() returns a location.
-        location = geolocator.reverse((best_lat, best_lon), language='en', timeout=10)
-        if location:
-            address = location.raw.get('address', {})
-            city = address.get('city') or address.get('town') or address.get('village') or address.get('hamlet') or "Unknown"
-            country = address.get('country') or "Unknown"
-            country_code = address.get('country_code')
+    # Try reverse geocoding with retry logic
+    for attempt in range(2):
+        try:
+            # Try to find a location near these coordinates
+            # reverse() returns a location object with address details
+            location = geolocator.reverse((best_lat, best_lon), language='en', timeout=10, zoom=10)
             
-            if city == "Unknown":
-                # Try to find a larger city nearby? 
-                # For now, just accept what we have.
-                pass
-    except Exception as e:
-        print(f"Reverse geocoding error: {e}")
+            if location:
+                address = location.raw.get('address', {})
+                
+                # Try multiple address fields in order of preference
+                city = (
+                    address.get('city') or 
+                    address.get('town') or 
+                    address.get('village') or 
+                    address.get('municipality') or
+                    address.get('hamlet') or
+                    address.get('county') or
+                    address.get('state_district') or
+                    address.get('state') or
+                    address.get('region') or
+                    None
+                )
+                
+                # Get country information
+                country = address.get('country') or "Unknown"
+                country_code = address.get('country_code')
+                
+                # If still no city, try to extract from display_name
+                if not city and location.raw.get('display_name'):
+                    display_name = location.raw.get('display_name')
+                    # display_name format is usually: "Place, Region, Country"
+                    parts = [p.strip() for p in display_name.split(',')]
+                    if len(parts) >= 2:
+                        # Use the first meaningful part as city
+                        city = parts[0] if parts[0] else None
+                
+                # If we found a location but no specific city, provide descriptive fallback
+                if not city:
+                    if address.get('ocean') or address.get('sea'):
+                        # Location is in ocean/sea
+                        ocean_name = address.get('ocean') or address.get('sea')
+                        city = f"Ocean ({ocean_name})" if ocean_name else "Ocean Location"
+                    elif country != "Unknown":
+                        # We have country but no city - use region/state
+                        region = address.get('state') or address.get('region')
+                        city = f"{region}, {country}" if region else country
+                    else:
+                        city = "Remote Location"
+                
+                break  # Success, exit retry loop
+                
+        except GeocoderTimedOut:
+            print(f"Reverse geocoding timeout (attempt {attempt + 1}/2)")
+            if attempt == 1:  # Last attempt failed
+                city = "Location Unavailable"
+        except Exception as e:
+            print(f"Reverse geocoding error (attempt {attempt + 1}/2): {e}")
+            if attempt == 1:  # Last attempt failed
+                city = "Geocoding Error"
         
-    # Fallback for country if unknown (simple bounding boxes)
+    # Fallback for country if unknown (improved ocean and region detection)
     if country == "Unknown":
-        if 50 <= best_lat <= 80 and 20 <= best_lon <= 180:
+        # Check if location is in ocean based on coordinates
+        if -180 <= best_lon <= -30:  # Western Hemisphere oceans
+            if 0 <= best_lat <= 70:
+                country = "North Atlantic Ocean"
+                city = "Ocean Location" if city == "Unknown" else city
+            elif -60 <= best_lat < 0:
+                country = "South Atlantic Ocean"
+                city = "Ocean Location" if city == "Unknown" else city
+            elif best_lon < -100:  # Pacific side
+                if best_lat >= 0:
+                    country = "North Pacific Ocean"
+                    city = "Ocean Location" if city == "Unknown" else city
+                else:
+                    country = "South Pacific Ocean"
+                    city = "Ocean Location" if city == "Unknown" else city
+        elif 30 <= best_lon <= 180:  # Eastern Hemisphere oceans
+            if best_lat >= 0:
+                country = "North Pacific Ocean"
+                city = "Ocean Location" if city == "Unknown" else city
+            else:
+                country = "Indian Ocean"
+                city = "Ocean Location" if city == "Unknown" else city
+        # Land-based fallbacks
+        elif 50 <= best_lat <= 80 and 20 <= best_lon <= 180:
             country = "Russia"
             country_code = "ru"
         elif -10 <= best_lat <= 60 and -10 <= best_lon <= 40:
-            country = "Europe/Africa" # Simplified
+            country = "Europe/Africa"
         elif 25 <= best_lat <= 50 and -130 <= best_lon <= -65:
             country = "United States"
             country_code = "us"
@@ -337,4 +440,136 @@ def calculate_perfect_alignment(birth_date, birth_time, birth_city, birth_countr
         "reasoning": reasoning,
         "localDateAtReturn": local_date_str,
         "localTimeAtReturn": local_time_str
+    }
+
+def calculate_arroyo_analysis(birth_date, birth_time, city, country, state=None):
+    lat, lon = get_lat_lon(city, country, state)
+    
+    dt_str = f"{birth_date} {birth_time}"
+    try:
+        dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
+        
+    ts = load.timescale()
+    t = ts.from_datetime(dt.replace(tzinfo=pytz.utc))
+    
+    observer = earth + wgs84.latlon(lat, lon)
+    
+    # Zodiac Data
+    zodiac_signs = [
+        "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", 
+        "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"
+    ]
+    
+    elements = {
+        "Fire": ["Aries", "Leo", "Sagittarius"],
+        "Earth": ["Taurus", "Virgo", "Capricorn"],
+        "Air": ["Gemini", "Libra", "Aquarius"],
+        "Water": ["Cancer", "Scorpio", "Pisces"]
+    }
+    
+    modalities = {
+        "Cardinal": ["Aries", "Cancer", "Libra", "Capricorn"],
+        "Fixed": ["Taurus", "Leo", "Scorpio", "Aquarius"],
+        "Mutable": ["Gemini", "Virgo", "Sagittarius", "Pisces"]
+    }
+    
+    # Calculate Positions
+    bodies = {
+        'Sun': sun,
+        'Moon': moon,
+        'Mercury': eph['mercury'],
+        'Venus': eph['venus'],
+        'Mars': eph['mars'],
+        'Jupiter': eph['jupiter_barycenter'],
+        'Saturn': eph['saturn_barycenter'],
+        'Uranus': eph['uranus_barycenter'],
+        'Neptune': eph['neptune_barycenter'],
+        'Pluto': eph['pluto_barycenter']
+    }
+    
+    positions = {}
+    
+    for name, body in bodies.items():
+        astrometric = observer.at(t).observe(body)
+        _, lon_ecl, _ = astrometric.apparent().ecliptic_latlon()
+        lon_deg = lon_ecl.degrees
+        z_index = int(lon_deg / 30)
+        z_sign = zodiac_signs[z_index % 12]
+        positions[name] = {"sign": z_sign, "longitude": lon_deg}
+
+    # Calculate Ascendant (Approximate)
+    from skyfield.api import Angle
+    import math
+    
+    # Get GAST from skyfield
+    gast_hours = t.gast
+    lst_hours = gast_hours + lon / 15.0
+    lst_rad = lst_hours * 15.0 * (math.pi / 180.0)
+    
+    lat_rad = lat * (math.pi / 180.0)
+    eps_rad = 23.44 * (math.pi / 180.0) # Approx obliquity
+    
+    # Formula for Ascendant
+    y = -math.cos(lst_rad)
+    x = math.sin(lst_rad) * math.cos(eps_rad) + math.tan(lat_rad) * math.sin(eps_rad)
+    
+    asc_rad = math.atan2(y, x)
+    asc_deg = asc_rad * (180.0 / math.pi)
+    if asc_deg < 0: asc_deg += 360.0
+    
+    asc_index = int(asc_deg / 30)
+    asc_sign = zodiac_signs[asc_index % 12]
+    positions['Ascendant'] = {"sign": asc_sign, "longitude": asc_deg}
+    
+    # Scoring
+    scores = {
+        "Fire": 0, "Earth": 0, "Air": 0, "Water": 0,
+        "Cardinal": 0, "Fixed": 0, "Mutable": 0
+    }
+    
+    weights = {
+        'Sun': 2, 'Moon': 2, 'Ascendant': 2,
+        'Mercury': 1, 'Venus': 1, 'Mars': 1,
+        'Jupiter': 1, 'Saturn': 1, 'Uranus': 1, 'Neptune': 1, 'Pluto': 1
+    }
+    
+    for name, data in positions.items():
+        sign = data['sign']
+        weight = weights.get(name, 1)
+        
+        # Find Element
+        for elem, signs in elements.items():
+            if sign in signs:
+                scores[elem] += weight
+                
+        # Find Modality
+        for mod, signs in modalities.items():
+            if sign in signs:
+                scores[mod] += weight
+                
+    # Interpretation
+    dominant_element = max(elements.keys(), key=lambda k: scores[k])
+    weakest_element = min(elements.keys(), key=lambda k: scores[k])
+    
+    interpretation = ""
+    if dominant_element == "Fire":
+        interpretation = "You have a strong emphasis on Fire, suggesting a spirited, intuitive, and enthusiastic approach to life. You likely value freedom and self-expression."
+    elif dominant_element == "Earth":
+        interpretation = "Your chart is grounded in Earth, indicating a practical, reliable, and sensory-oriented nature. You likely value stability and tangible results."
+    elif dominant_element == "Air":
+        interpretation = "With a dominance of Air, you are likely intellectually driven, communicative, and social. You value ideas, relationships, and objectivity."
+    elif dominant_element == "Water":
+        interpretation = "A Water emphasis suggests a deep emotional nature, intuition, and sensitivity. You likely value connection, healing, and the mysteries of life."
+        
+    if scores[weakest_element] <= 2:
+        interpretation += f" However, you may need to consciously cultivate {weakest_element} energy, as it is less naturally available to you."
+
+    return {
+        "scores": scores,
+        "positions": positions,
+        "dominantElement": dominant_element,
+        "dominantModality": max(modalities.keys(), key=lambda k: scores[k]),
+        "interpretation": interpretation
     }

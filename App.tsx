@@ -1,15 +1,16 @@
 
 import React, { useState, useEffect } from 'react';
-import { AstroInput, BirthAnalysis, AstroAnalysis, PerfectAlignment, AnalysisStatus } from './types';
+import { AstroInput, BirthAnalysis, AstroAnalysis, PerfectAlignment, AnalysisStatus, ArroyoAnalysis } from './types';
 import { analyzeAstroData, resolveLocationFromGeo } from './services/apiService';
 import StarBackground from './components/StarBackground';
 import InputForm from './components/InputForm';
 import AstroCard from './components/AstroCard';
 import AlignmentCard from './components/AlignmentCard';
+import ArroyoCard from './components/ArroyoCard';
 import AstrologicalChartCard from './components/AstrologicalChartCard';
 import { Rocket, ChevronDown, Github } from 'lucide-react';
 
-const APP_VERSION = '1.1.011';
+const APP_VERSION = '1.1.012';
 
 const App: React.FC = () => {
     const [birthData, setBirthData] = useState<AstroInput>({
@@ -22,7 +23,7 @@ const App: React.FC = () => {
     });
 
     const [status, setStatus] = useState<AnalysisStatus>(AnalysisStatus.IDLE);
-    const [results, setResults] = useState<{ birthAnalysis: BirthAnalysis; currentAnalysis: AstroAnalysis; perfectAlignment: PerfectAlignment } | null>(null);
+    const [results, setResults] = useState<{ birthAnalysis: BirthAnalysis; currentAnalysis: AstroAnalysis; perfectAlignment: PerfectAlignment; arroyoAnalysis: ArroyoAnalysis } | null>(null);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [isLoadingLoc, setIsLoadingLoc] = useState(false);
     const [showChart, setShowChart] = useState(true);
@@ -36,6 +37,7 @@ const App: React.FC = () => {
             console.log('[RENDER.3] birthAnalysis:', !!results.birthAnalysis);
             console.log('[RENDER.4] currentAnalysis:', !!results.currentAnalysis);
             console.log('[RENDER.5] perfectAlignment:', !!results.perfectAlignment);
+            console.log('[RENDER.6] arroyoAnalysis:', !!results.arroyoAnalysis);
         }
     }, [results, showChart]);
 
@@ -90,7 +92,7 @@ const App: React.FC = () => {
 
         // Validation: Ensure Location, Country, Date, and Time are present
         if (!birthData.city || !birthData.country || !birthData.date || !birthData.time ||
-            !currentData.city || !currentData.country) {
+            !currentData.city || !currentData.country || !currentData.date || !currentData.time) {
             console.log('[STEP 2] Validation FAILED - missing required fields');
             setErrorMsg("Please fill in all required fields (Location, Country, Date, Time) for both sections.");
             return;
@@ -290,31 +292,50 @@ const App: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Second Row: Astrological Chart (Full Width) */}
-                        {showChart && (
-                            <div className="mb-6">
-                                {console.log('[RENDER.11] Astrological Chart rendering - Second row')}
+                        {/* Second Row: Arroyo Analysis and Chart */}
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                            {/* Arroyo Card */}
+                            <div className="lg:col-span-1 flex">
                                 {(() => {
                                     try {
-                                        return <AstrologicalChartCard data={results.birthAnalysis} />;
+                                        return <ArroyoCard data={results.arroyoAnalysis} />;
                                     } catch (error) {
-                                        console.error('[RENDER] Error rendering Chart Card:', error);
+                                        console.error('[RENDER] Error rendering Arroyo Card:', error);
                                         return (
                                             <div className="w-full h-full p-6 rounded-2xl border border-red-500/30 bg-red-900/10">
-                                                <div className="text-red-400">Error rendering Chart Card: {String(error)}</div>
+                                                <div className="text-red-400">Error rendering Arroyo Card: {String(error)}</div>
                                             </div>
                                         );
                                     }
                                 })()}
                             </div>
-                        )}
+
+                            {/* Astrological Chart (Spans 2 columns) */}
+                            {showChart && (
+                                <div className="lg:col-span-2 flex">
+                                    {console.log('[RENDER.11] Astrological Chart rendering - Second row')}
+                                    {(() => {
+                                        try {
+                                            return <AstrologicalChartCard data={results.birthAnalysis} />;
+                                        } catch (error) {
+                                            console.error('[RENDER] Error rendering Chart Card:', error);
+                                            return (
+                                                <div className="w-full h-full p-6 rounded-2xl border border-red-500/30 bg-red-900/10">
+                                                    <div className="text-red-400">Error rendering Chart Card: {String(error)}</div>
+                                                </div>
+                                            );
+                                        }
+                                    })()}
+                                </div>
+                            )}
+                        </div>
 
                         <div className="mt-12 bg-space-800/30 border border-space-700 rounded-xl p-8 text-center">
                             <h3 className="text-xl font-semibold text-white mb-4">Analysis Summary</h3>
                             <p className="text-gray-300 max-w-3xl mx-auto">
-                                At your birth in <span className="text-amber-400">{birthData.city}</span>, the True Solar Time differed from Civil Time by <span className="text-amber-400">{results.birthAnalysis.equationOfTime}</span>.
+                                At your birth in <span className="text-amber-400">{birthData.city}, {birthData.state ? `${birthData.state}, ` : ''}{birthData.country}</span>, the True Solar Time differed from Civil Time by <span className="text-amber-400">{results.birthAnalysis.civilTimeDifference}</span>.
                                 Your next exact Solar Return occurs on {String(results.birthAnalysis.nextSolarReturn || "").includes('T') ? results.birthAnalysis.nextSolarReturn!.split('T')[0] : results.birthAnalysis.nextSolarReturn}.
-                                To experience the sky exactly as it was when you were born, consider traveling to <span className="text-space-glow font-bold">{results.perfectAlignment.city}, {results.perfectAlignment.country}</span>.
+                                To experience the sky exactly as it was when you were born, consider traveling to <span className="text-space-glow font-bold">{results.perfectAlignment.city !== 'Ocean Location' ? results.perfectAlignment.city : ''}{results.perfectAlignment.city !== 'Ocean Location' && results.perfectAlignment.country ? ', ' : ''}{results.perfectAlignment.country}</span>.
                             </p>
                         </div>
                     </div>
